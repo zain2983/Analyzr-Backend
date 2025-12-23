@@ -1,0 +1,43 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.venv/
+build/
+develop-eggs/
+dist/
+wheels/
+*.egg-info/
+.installed.cfg
+MANIFEST
+*.manifest
+*.mo
+*.pot
+*.log
+*.sqlite
+.coverage
+.tox/
+.mypy_cache/
+.pytest_cache/
+
+# Editors and IDEs
+.idea/  # JetBrains IDEs (PyCharm, etc)
+.vscode/ # VS Code
+*.swp
+*~
+.DS_Store # macOS system files
+Thumbs.db # Windows system files
+
+# Environment variables and sensitive files
+.env
+.env.*
+.flaskenv
+
+# FastAPI specific (optional, depending on your setup)
+# If using FastAPI Cloud, you might use a .fastapicloudignore instead/additionally
+# For local deployment artifacts, e.g., Uvicorn logs, if they are saved to disk
+# logs/*.log
