@@ -24,6 +24,9 @@ async def upload_csv(file: UploadFile = File(...)):
 
     try:
         df = pd.read_csv(file.file)
+        print("Filename : ", file.filename)
+        print("Columns :", ", ".join(df.columns))
+        print("Number of rows :", len(df))
         # print("[INFO] -------------------- READ THE CSV SUCCESSFULLY")
         # print(df.head())
     except Exception as e:
@@ -33,7 +36,7 @@ async def upload_csv(file: UploadFile = File(...)):
         raise HTTPException(status_code=400, detail="Uploaded CSV is empty")
 
     dataset_id = create_dataset(df)
-    # print(dataset_id)
+    print(f"Dataset_id : {dataset_id}")
 
     return {
         "dataset_id": dataset_id,
