@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import duckdb
+import numpy as np
 from app.core.dataset_manager import get_dataset
 
 router = APIRouter()
@@ -28,6 +29,8 @@ def run_sql_query(request: SQLQueryRequest):
         result_df = con.execute(request.query).fetchdf()
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"SQL error: {str(e)}")
+
+    result_df = result_df.replace({np.nan: None})  # ← ADD THIS LINE
 
     return {
         "rows": len(result_df),
