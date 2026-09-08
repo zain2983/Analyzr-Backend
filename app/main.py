@@ -18,7 +18,7 @@ app.add_middleware(
 )
 
 # Routers (to be implemented)
-from app.api import sql_query, upload, check_commas_script, download
+from app.api import sql_query, upload, check_commas_script, download, datasets
 
 @app.get("/")
 def root():
@@ -31,3 +31,4 @@ app.include_router(upload.router, prefix="/api")
 app.include_router(sql_query.router, prefix="/api")
 app.include_router(check_commas_script.router, prefix="/api")
 app.include_router(download.router, prefix="/api")
+app.include_router(datasets.router, prefix="/api")
