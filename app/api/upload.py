@@ -41,5 +41,6 @@ async def upload_csv(file: UploadFile = File(...)):
     return {
         "dataset_id": dataset_id,
         "rows": len(df),
-        "columns": list(df.columns)
+        "columns": list(df.columns),
+        "column_types": df.dtypes.astype(str).to_dict()
     }
