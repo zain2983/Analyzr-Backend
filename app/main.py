@@ -96,7 +96,7 @@ async def security_headers(request: Request, call_next):
     return response
 
 
-from app.api import sql_query, upload, check_commas_script, download, datasets
+from app.api import sql_query, upload, check_commas_script, download, datasets, transform
 
 
 @app.get("/")
@@ -111,3 +111,4 @@ app.include_router(sql_query.router, prefix="/api")
 app.include_router(check_commas_script.router, prefix="/api")
 app.include_router(download.router, prefix="/api")
 app.include_router(datasets.router, prefix="/api")
+app.include_router(transform.router, prefix="/api")

@@ -70,6 +70,23 @@ def get_dataset(dataset_id: str):
     return entry
 
 
+def rename_column(dataset_id: str, column: str, new_name: str) -> pd.DataFrame | None:
+    """Renames a column on the stored frame in place, under the same lock as
+    every other mutation of DATASETS. Returns the updated frame, or None if
+    the dataset doesn't exist (or expired between the caller's own check and
+    this call — TTL eviction runs on its own clock)."""
+    with _lock:
+        entry = DATASETS.get(dataset_id)
+        if entry is None:
+            return None
+        if time.time() - entry["created_at"] > DATASET_TTL_SECONDS:
+            DATASETS.pop(dataset_id, None)
+            return None
+
+        entry["df"].rename(columns={column: new_name}, inplace=True)
+        return entry["df"]
+
+
 def delete_dataset(dataset_id: str) -> None:
     with _lock:
         DATASETS.pop(dataset_id, None)
