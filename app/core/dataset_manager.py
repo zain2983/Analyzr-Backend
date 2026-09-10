@@ -1,19 +1,79 @@
-import pandas as pd
-import uuid
+"""In-memory dataset store.
+
+Deliberately not a database — the service is stateless by design and loses
+everything on restart. That does mean this dict is the whole memory budget
+of the process, so it needs its own limits: an unbounded store on an
+unauthenticated upload endpoint is a one-command denial of service.
+
+Two bounds, both enforced on insert:
+  * a TTL, so an abandoned upload doesn't occupy RAM until the next deploy;
+  * a hard count, so a burst of concurrent uploads can't outrun the TTL.
+"""
+
+from __future__ import annotations
+
+import threading
 import time
 
-DATASETS = {}
+import pandas as pd
 
-def create_dataset(df: pd.DataFrame):
-    dataset_id = str(uuid.uuid4())
-    DATASETS[dataset_id] = {
-        "df": df,
-        "created_at": time.time()
-    }
+from app.core.validation import new_dataset_id
+
+DATASETS: dict[str, dict] = {}
+
+# Uploads are session-scoped in the UI; an hour is generous for a working
+# session and short enough that garbage doesn't accumulate.
+DATASET_TTL_SECONDS = 60 * 60
+MAX_DATASETS = 50
+
+_lock = threading.Lock()
+
+
+def _evict_expired_locked(now: float) -> None:
+    expired = [
+        ds_id
+        for ds_id, entry in DATASETS.items()
+        if now - entry["created_at"] > DATASET_TTL_SECONDS
+    ]
+    for ds_id in expired:
+        DATASETS.pop(ds_id, None)
+
+
+def create_dataset(df: pd.DataFrame) -> str:
+    now = time.time()
+
+    with _lock:
+        _evict_expired_locked(now)
+
+        # Still full after expiry sweep: drop the oldest to make room, so a
+        # live user is never refused because of someone else's stale upload.
+        while len(DATASETS) >= MAX_DATASETS:
+            oldest = min(DATASETS, key=lambda k: DATASETS[k]["created_at"])
+            DATASETS.pop(oldest, None)
+
+        dataset_id = new_dataset_id()
+        DATASETS[dataset_id] = {"df": df, "created_at": now}
+
     return dataset_id
 
-def get_dataset(dataset_id: str):
-    return DATASETS.get(dataset_id)
 
-def delete_dataset(dataset_id: str):
-    DATASETS.pop(dataset_id, None)
+def get_dataset(dataset_id: str):
+    entry = DATASETS.get(dataset_id)
+    if entry is None:
+        return None
+
+    if time.time() - entry["created_at"] > DATASET_TTL_SECONDS:
+        with _lock:
+            DATASETS.pop(dataset_id, None)
+        return None
+
+    return entry
+
+
+def delete_dataset(dataset_id: str) -> None:
+    with _lock:
+        DATASETS.pop(dataset_id, None)
+
+
+def count_datasets() -> int:
+    return len(DATASETS)

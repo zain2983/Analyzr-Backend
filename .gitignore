@@ -35,6 +35,7 @@ Thumbs.db # Windows system files
 # Environment variables and sensitive files
 .env
 .env.*
+!.env.example
 .flaskenv
 
 # FastAPI specific (optional, depending on your setup)

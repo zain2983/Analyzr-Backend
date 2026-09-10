@@ -757,7 +757,10 @@ def _normalize_date_columns(df: pd.DataFrame, report: RepairReport) -> None:
 # 9. Formula-injection sanitization
 # ---------------------------------------------------------------------------
 
-_FORMULA_TRIGGER_RE = re.compile(r"^[=@]|^[+\-](?!\d|\.\d)")
+# Tab and CR are triggers too: a spreadsheet strips them on display, so
+# "\t=cmd|..." shows up as the formula behind them. They survive to here on
+# any path that skips _clean_whitespace (e.g. a header name).
+_FORMULA_TRIGGER_RE = re.compile(r"^[=@\t\r]|^[+\-](?!\d|\.\d)")
 
 
 def _sanitize_formula_injection(df: pd.DataFrame, report: RepairReport) -> None:
@@ -775,11 +778,24 @@ def _sanitize_formula_injection(df: pd.DataFrame, report: RepairReport) -> None:
 
         df[col] = df[col].map(fix)
 
+    # Column names land in the exported file's first row, so they carry the
+    # same risk as a cell and were previously left untouched.
+    renamed = []
+    for name in df.columns:
+        if isinstance(name, str) and _FORMULA_TRIGGER_RE.match(name):
+            renamed.append(name)
+    if renamed:
+        df.columns = [
+            "'" + c if isinstance(c, str) and _FORMULA_TRIGGER_RE.match(c) else c for c in df.columns
+        ]
+        sanitized += len(renamed)
+
     if sanitized:
         report.bump("formula_injection_cells_sanitized", sanitized)
         report.warn(
-            f"Sanitized {sanitized} cell(s) starting with '=', '@', or a non-numeric '+'/'-' "
-            "to prevent them from executing as spreadsheet formulas if opened in Excel/Sheets"
+            f"Sanitized {sanitized} cell(s)/column name(s) starting with '=', '@', a tab, or a "
+            "non-numeric '+'/'-' to prevent them from executing as spreadsheet formulas if "
+            "opened in Excel/Sheets"
         )
 
 
