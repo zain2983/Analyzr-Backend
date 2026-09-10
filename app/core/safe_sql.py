@@ -94,11 +94,19 @@ def _reject_unsafe(query: str, con: duckdb.DuckDBPyConnection) -> None:
         )
 
 
-def run_readonly_query(df: pd.DataFrame, query: str) -> pd.DataFrame:
+def run_readonly_query(df: pd.DataFrame, query: str, row_limit: int = MAX_RESULT_ROWS) -> pd.DataFrame:
     """Runs `query` against `df` (exposed as `dataset` and `data`) in a sandbox.
 
     Raises UnsafeQueryError for policy refusals, QueryTimeoutError when the
     budget is blown, and duckdb.Error for ordinary SQL problems.
+
+    `row_limit` bounds how many rows are pulled out of DuckDB into Python
+    objects — the wall-clock watchdog above bounds engine time, but nothing
+    else bounds how much a huge result (e.g. an unfiltered cross join) costs
+    to materialize here. Callers needing more than the default (e.g. a CSV
+    export, where 100 or even 5,000 rows is a real regression from "the
+    whole dataset") pass a larger cap explicitly rather than this function
+    having no ceiling at all.
     """
     con = duckdb.connect(database=":memory:", config=_SANDBOX_CONFIG)
     try:
@@ -119,7 +127,7 @@ def run_readonly_query(df: pd.DataFrame, query: str) -> pd.DataFrame:
             relation = con.sql(query)
             # Fetch through a LIMIT so an enormous result set is bounded in
             # the engine rather than after it lands in Python.
-            result = relation.limit(MAX_RESULT_ROWS + 1).df() if relation is not None else pd.DataFrame()
+            result = relation.limit(row_limit + 1).df() if relation is not None else pd.DataFrame()
         except duckdb.InterruptException as e:
             raise QueryTimeoutError(
                 f"Query exceeded the {QUERY_TIMEOUT_SECONDS:.0f}s time limit and was cancelled"

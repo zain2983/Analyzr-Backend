@@ -61,6 +61,10 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["Content-Type"],
+    # Response headers are invisible to browser JS across origins unless
+    # explicitly exposed — the query-export endpoint uses this one to tell
+    # the frontend its download got capped, without needing a JSON body.
+    expose_headers=["X-Result-Truncated"],
     max_age=600,
 )
 
@@ -96,7 +100,7 @@ async def security_headers(request: Request, call_next):
     return response
 
 
-from app.api import sql_query, upload, check_commas_script, download, datasets, transform
+from app.api import sql_query, upload, check_commas_script, download, datasets, transform, query_export
 
 
 @app.get("/")
@@ -112,3 +116,4 @@ app.include_router(check_commas_script.router, prefix="/api")
 app.include_router(download.router, prefix="/api")
 app.include_router(datasets.router, prefix="/api")
 app.include_router(transform.router, prefix="/api")
+app.include_router(query_export.router, prefix="/api")
