@@ -168,7 +168,7 @@ async def upload_csv(file: UploadFile = File(...)):
     if suffix != ".csv":
         sanitize_frame_in_place(df)
 
-    dataset_id = create_dataset(df)
+    dataset_id = create_dataset(df, repair_preview=repair_report.preview if repair_report else None)
 
     response = {
         "dataset_id": dataset_id,

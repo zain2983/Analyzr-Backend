@@ -39,7 +39,11 @@ def _evict_expired_locked(now: float) -> None:
         DATASETS.pop(ds_id, None)
 
 
-def create_dataset(df: pd.DataFrame) -> str:
+def create_dataset(df: pd.DataFrame, repair_preview: list[dict] | None = None) -> str:
+    """`repair_preview`, when given, is a handful of {before, after} row
+    snapshots from the CSV repair pipeline — held here rather than shipped in
+    the upload response, and fetched on demand via
+    GET /api/dataset/{id}/repair-preview."""
     now = time.time()
 
     with _lock:
@@ -52,7 +56,7 @@ def create_dataset(df: pd.DataFrame) -> str:
             DATASETS.pop(oldest, None)
 
         dataset_id = new_dataset_id()
-        DATASETS[dataset_id] = {"df": df, "created_at": now}
+        DATASETS[dataset_id] = {"df": df, "created_at": now, "repair_preview": repair_preview or []}
 
     return dataset_id
 

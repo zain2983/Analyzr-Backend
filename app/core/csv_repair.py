@@ -39,6 +39,12 @@ class RepairReport:
     delimiter: str = ","
     warnings: list[str] = field(default_factory=list)
     stats: dict[str, int] = field(default_factory=dict)
+    # A handful of {before, after} row snapshots for the "repair preview"
+    # feature. Deliberately excluded from to_dict()/the upload response —
+    # fetched on demand via GET /api/dataset/{id}/repair-preview instead, so
+    # every upload doesn't carry sample rows through sessionStorage whether
+    # or not the user ever looks at them.
+    preview: list[dict] = field(default_factory=list)
 
     def warn(self, message: str) -> None:
         self.warnings.append(message)
@@ -64,6 +70,12 @@ class RepairReport:
 
 class CSVRepairError(ValueError):
     """Raised for structural problems repair can't recover from — a genuine reject, not a fixable warning."""
+
+
+# How many original-vs-fixed rows repair_csv() snapshots for the "repair
+# preview" feature — enough to show the user a representative sample without
+# holding onto (or transmitting) anything close to the full file.
+PREVIEW_ROW_COUNT = 5
 
 
 # ---------------------------------------------------------------------------
@@ -824,6 +836,36 @@ def _flag_mixed_types_and_duplicates(df: pd.DataFrame, report: RepairReport) -> 
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _stringify_preview_value(value) -> Optional[str]:
+    """Renders a post-normalization cell (which may be a float, Timestamp,
+    NaN, or None by this point) back to a display string for the preview."""
+    if value is None or (isinstance(value, float) and pd.isna(value)):
+        return None
+    return str(value)
+
+
+def _build_repair_preview(
+    header: list[str], reconciled_rows: list[list[str]], df: pd.DataFrame
+) -> list[dict]:
+    """Snapshots up to PREVIEW_ROW_COUNT rows as {before, after} pairs, before
+    vs. after value-level normalization — the last point in the pipeline
+    where "original as typed" values are still available. Only rows where at
+    least one cell actually changed are kept, since a preview full of
+    identical before/after rows isn't useful.
+
+    Row-index alignment holds because `reconciled_rows` (post-structural-
+    repair, pre-normalization) becomes the DataFrame's rows 1:1 and in order
+    — _reconcile_rows pads/merges every kept row to exactly len(header).
+    """
+    preview = []
+    for i, before_row in enumerate(reconciled_rows[:PREVIEW_ROW_COUNT]):
+        before = {col: before_row[j] for j, col in enumerate(header)}
+        after = {col: _stringify_preview_value(df.iloc[i][col]) for col in header}
+        if any(before.get(col) != after.get(col) for col in header):
+            preview.append({"before": before, "after": after})
+    return preview
+
+
 def repair_csv(raw: bytes) -> tuple[pd.DataFrame, RepairReport]:
     report = RepairReport()
 
@@ -855,5 +897,8 @@ def repair_csv(raw: bytes) -> tuple[pd.DataFrame, RepairReport]:
     _normalize_date_columns(df, report)
     _sanitize_formula_injection(df, report)
     _flag_mixed_types_and_duplicates(df, report)
+
+    if not report.clean:
+        report.preview = _build_repair_preview(header, reconciled_rows, df)
 
     return df, report
