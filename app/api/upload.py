@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, UploadFile, File, HTTPException
 import pandas as pd
 from app.core.dataset_manager import create_dataset
+from app.core.csv_repair import CSVRepairError, RepairReport, repair_csv
 
 router = APIRouter()
 
@@ -16,11 +17,12 @@ MAX_CELLS = 5_000_000
 ALLOWED_SUFFIXES = {".csv", ".json", ".xlsx"}
 
 
-def _read_csv(file) -> pd.DataFrame:
+def _read_csv(file) -> tuple[pd.DataFrame, RepairReport]:
+    raw = file.read()
     try:
-        return pd.read_csv(file)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Invalid CSV file: {str(e)}")
+        return repair_csv(raw)
+    except CSVRepairError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 def _read_json(file) -> pd.DataFrame:
@@ -72,8 +74,9 @@ async def upload_csv(file: UploadFile = File(...)):
         )
 
     sheet_name = None
+    repair_report = None
     if suffix == ".csv":
-        df = _read_csv(file.file)
+        df, repair_report = _read_csv(file.file)
     elif suffix == ".json":
         df = _read_json(file.file)
     else:
@@ -99,5 +102,7 @@ async def upload_csv(file: UploadFile = File(...)):
     }
     if sheet_name is not None:
         response["sheet_name"] = sheet_name
+    if repair_report is not None:
+        response["repair_report"] = repair_report.to_dict()
 
     return response
