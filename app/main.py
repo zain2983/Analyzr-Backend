@@ -1,9 +1,15 @@
 import logging
 import os
 
+from dotenv import load_dotenv
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+
+# Local dev keeps its config in .env; nothing else in the process loads it,
+# so without this ANALYZR_ENV=development in .env is silently ignored and
+# CORS falls back to production-only, breaking a locally-run frontend.
+load_dotenv()
 
 app = FastAPI(
     title="Analyzr-Backend",
